@@ -1,0 +1,775 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum PapelUsuario {
+  OWNER
+  MANAGER
+  ATTENDANT
+
+  @@map("papel_usuario")
+}
+
+enum TipoProduto {
+  NORMAL
+  SABOR_PIZZA
+
+  @@map("tipo_produto")
+}
+
+enum DiaSemana {
+  SEGUNDA
+  TERCA
+  QUARTA
+  QUINTA
+  SEXTA
+  SABADO
+  DOMINGO
+
+  @@map("dia_semana")
+}
+
+enum TipoEntrega {
+  DELIVERY
+  RETIRADA
+
+  @@map("tipo_entrega")
+}
+
+enum OrigemPedido {
+  WEB
+  PDV
+
+  @@map("origem_pedido")
+}
+
+enum StatusPedido {
+  AGUARDANDO_ACEITE
+  ACEITO
+  EM_PREPARO
+  PRONTO_RETIRADA
+  SAIU_PARA_ENTREGA
+  CONCLUIDO
+  RECUSADO
+  CANCELADO
+  EXPIRADO
+
+  @@map("status_pedido")
+}
+
+enum FormaPagamento {
+  PIX_MANUAL
+  PIX_ASAAS
+  DINHEIRO
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+
+  @@map("forma_pagamento")
+}
+
+enum ProvedorPagamento {
+  ASAAS
+  MERCADO_PAGO
+
+  @@map("provedor_pagamento")
+}
+
+enum StatusPagamento {
+  A_PAGAR
+  AGUARDANDO_CONFIRMACAO_MANUAL
+  AGUARDANDO_CRIACAO_GATEWAY
+  AGUARDANDO_PAGAMENTO
+  PAGO
+  FALHOU
+  EXPIRADO
+  CANCELADO
+  ESTORNO_PENDENTE
+  ESTORNADO
+
+  @@map("status_pagamento")
+}
+
+enum TipoAtorEvento {
+  USUARIO
+  SISTEMA
+
+  @@map("tipo_ator_evento")
+}
+
+enum AudienciaPush {
+  RESTAURANTE
+  CLIENTE
+
+  @@map("audiencia_push")
+}
+
+enum StatusOutbox {
+  PENDENTE
+  PROCESSANDO
+  PROCESSADO
+  FALHA
+
+  @@map("status_outbox")
+}
+
+enum StatusWebhook {
+  RECEBIDO
+  PROCESSANDO
+  PROCESSADO
+  FALHA
+  REJEITADO
+
+  @@map("status_webhook")
+}
+
+model Restaurante {
+  id                  String   @id @default(uuid()) @db.Uuid
+  nome                String   @db.VarChar(100)
+  slug                String   @unique @db.VarChar(50)
+  ativo               Boolean  @default(true)
+  telefone            String?  @db.VarChar(20)
+  whatsapp            String?  @db.VarChar(20)
+  enderecoRua         String?  @map("endereco_rua") @db.VarChar(150)
+  enderecoNumero      String?  @map("endereco_numero") @db.VarChar(20)
+  enderecoComplemento String?  @map("endereco_complemento") @db.VarChar(100)
+  enderecoBairro      String?  @map("endereco_bairro") @db.VarChar(100)
+  enderecoCidade      String?  @map("endereco_cidade") @db.VarChar(100)
+  enderecoEstado      String?  @map("endereco_estado") @db.Char(2)
+  enderecoCep         String?  @map("endereco_cep") @db.VarChar(9)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  usuarios              Usuario[]
+  convites              ConviteUsuario[]
+  sessoes               SessaoUsuario[]
+  tokensRecuperacao     TokenRecuperacaoSenha[]
+  configuracao          ConfiguracaoRestaurante?
+  configuracaoPixManual ConfiguracaoPixManual?
+  horarios              HorarioFuncionamento[]
+  categorias            Categoria[]
+  produtos              Produto[]
+  tamanhosPizza         TamanhoPizza[]
+  precosProdutoTamanho  PrecoProdutoTamanho[]
+  gruposAdicionais      GrupoAdicional[]
+  itensAdicional        ItemAdicional[]
+  produtoGrupos         ProdutoGrupoAdicional[]
+  bairrosEntrega        BairroEntrega[]
+  clientes              Cliente[]
+  enderecosCliente      EnderecoCliente[]
+  tokensCliente         TokenDispositivoCliente[]
+  contadorPedidos       ContadorPedido?
+  pedidos               Pedido[]
+  itensPedido           PedidoItem[]
+  adicionaisPedido      PedidoItemAdicional[]
+  pagamentos            Pagamento[]
+  credenciaisGateway    CredencialGateway[]
+  eventosPedido         EventoStatusPedido[]
+  inscricoesPush        InscricaoPush[]
+  outboxEventos         OutboxEvento[]
+
+  @@map("restaurantes")
+}
+
+model Usuario {
+  id            String       @id @default(uuid()) @db.Uuid
+  restauranteId String       @map("restaurante_id") @db.Uuid
+  nome          String       @db.VarChar(100)
+  email         String       @db.VarChar(254)
+  senhaHash     String       @map("senha_hash") @db.VarChar(255)
+  papel         PapelUsuario @default(ATTENDANT)
+  ativo         Boolean      @default(true)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante       Restaurante             @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  convitesCriados   ConviteUsuario[]        @relation("ConviteCriador")
+  sessoes           SessaoUsuario[]
+  tokensRecuperacao TokenRecuperacaoSenha[]
+  inscricoesPush    InscricaoPush[]
+  pedidosCriados    Pedido[]                @relation("PedidoCriador")
+  eventosPedido     EventoStatusPedido[]
+
+  @@unique([restauranteId, email])
+  @@unique([restauranteId, id])
+  @@index([restauranteId, ativo])
+  @@map("usuarios")
+}
+
+model ConviteUsuario {
+  id                 String       @id @default(uuid()) @db.Uuid
+  restauranteId      String       @map("restaurante_id") @db.Uuid
+  email              String       @db.VarChar(254)
+  papel              PapelUsuario
+  tokenHash          String       @unique @map("token_hash") @db.VarChar(255)
+  expiraEm           DateTime     @map("expira_em") @db.Timestamptz(6)
+  criadoPorUsuarioId String       @map("criado_por_usuario_id") @db.Uuid
+  consumidoEm        DateTime?    @map("consumido_em") @db.Timestamptz(6)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  criadoPor   Usuario     @relation("ConviteCriador", fields: [restauranteId, criadoPorUsuarioId], references: [restauranteId, id], onDelete: Restrict)
+
+  @@index([restauranteId, email, expiraEm])
+  @@map("convites_usuario")
+}
+
+model SessaoUsuario {
+  id                String    @id @default(uuid()) @db.Uuid
+  restauranteId     String    @map("restaurante_id") @db.Uuid
+  usuarioId         String    @map("usuario_id") @db.Uuid
+  refreshTokenHash  String    @unique @map("refresh_token_hash") @db.VarChar(255)
+  expiraEm          DateTime  @map("expira_em") @db.Timestamptz(6)
+  revogadaEm        DateTime? @map("revogada_em") @db.Timestamptz(6)
+  rotacionadaParaId String?   @map("rotacionada_para_id") @db.Uuid
+  dispositivo       String?   @db.VarChar(255)
+  enderecoIpHash    String?   @map("endereco_ip_hash") @db.VarChar(128)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  restaurante     Restaurante     @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  usuario         Usuario         @relation(fields: [restauranteId, usuarioId], references: [restauranteId, id], onDelete: Restrict)
+  rotacionadaPara SessaoUsuario?  @relation("RotacaoSessao", fields: [rotacionadaParaId], references: [id], onDelete: SetNull)
+  rotacionadaDe   SessaoUsuario[] @relation("RotacaoSessao")
+
+  @@index([restauranteId, usuarioId, expiraEm])
+  @@map("sessoes_usuario")
+}
+
+model TokenRecuperacaoSenha {
+  id            String    @id @default(uuid()) @db.Uuid
+  restauranteId String    @map("restaurante_id") @db.Uuid
+  usuarioId     String    @map("usuario_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash") @db.VarChar(255)
+  expiraEm      DateTime  @map("expira_em") @db.Timestamptz(6)
+  consumidoEm   DateTime? @map("consumido_em") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  usuario     Usuario     @relation(fields: [restauranteId, usuarioId], references: [restauranteId, id], onDelete: Cascade)
+
+  @@index([restauranteId, usuarioId, expiraEm])
+  @@map("tokens_recuperacao_senha")
+}
+
+model ConfiguracaoRestaurante {
+  restauranteId         String   @id @map("restaurante_id") @db.Uuid
+  deliveryHabilitado    Boolean  @default(true) @map("delivery_habilitado")
+  retiradaHabilitada    Boolean  @default(true) @map("retirada_habilitada")
+  prazoAceiteMinutos    Int      @default(10) @map("prazo_aceite_minutos")
+  prazoPagamentoMinutos Int      @default(15) @map("prazo_pagamento_minutos")
+  aceitarPixManual      Boolean  @default(false) @map("aceitar_pix_manual")
+  aceitarPixAsaas       Boolean  @default(false) @map("aceitar_pix_asaas")
+  aceitarDinheiro       Boolean  @default(true) @map("aceitar_dinheiro")
+  aceitarCartaoCredito  Boolean  @default(true) @map("aceitar_cartao_credito")
+  aceitarCartaoDebito   Boolean  @default(true) @map("aceitar_cartao_debito")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+
+  @@map("configuracoes_restaurante")
+}
+
+model ConfiguracaoPixManual {
+  restauranteId String   @id @map("restaurante_id") @db.Uuid
+  tipoChave     String   @map("tipo_chave") @db.VarChar(20)
+  chaveCifrada  String   @map("chave_cifrada") @db.Text
+  nomeRecebedor String?  @map("nome_recebedor") @db.VarChar(120)
+  ativa         Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+
+  @@map("configuracoes_pix_manual")
+}
+
+model HorarioFuncionamento {
+  id            String    @id @default(uuid()) @db.Uuid
+  restauranteId String    @map("restaurante_id") @db.Uuid
+  diaSemana     DiaSemana @map("dia_semana")
+  abreAs        DateTime  @map("abre_as") @db.Time(0)
+  fechaAs       DateTime  @map("fecha_as") @db.Time(0)
+  ativo         Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+
+  @@unique([restauranteId, diaSemana, abreAs])
+  @@index([restauranteId, diaSemana, ativo])
+  @@map("horarios_funcionamento")
+}
+
+model Categoria {
+  id            String   @id @default(uuid()) @db.Uuid
+  restauranteId String   @map("restaurante_id") @db.Uuid
+  nome          String   @db.VarChar(60)
+  ordem         Int      @default(0)
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  produtos    Produto[]
+
+  @@unique([restauranteId, id])
+  @@index([restauranteId, ativo, ordem])
+  @@map("categorias")
+}
+
+model Produto {
+  id            String      @id @default(uuid()) @db.Uuid
+  restauranteId String      @map("restaurante_id") @db.Uuid
+  categoriaId   String?     @map("categoria_id") @db.Uuid
+  tipo          TipoProduto @default(NORMAL)
+  nome          String      @db.VarChar(100)
+  descricao     String?     @db.Text
+  preco         Decimal?    @db.Decimal(12, 2)
+  imagemKey     String?     @map("imagem_key") @db.Text
+  disponivel    Boolean     @default(true)
+  ativo         Boolean     @default(true)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante        Restaurante             @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  categoria          Categoria?              @relation(fields: [restauranteId, categoriaId], references: [restauranteId, id], onDelete: Restrict)
+  precos             PrecoProdutoTamanho[]
+  gruposAdicionais   ProdutoGrupoAdicional[]
+  itensPedidoProduto PedidoItem[]            @relation("ProdutoPedido")
+  itensPedidoSabor1  PedidoItem[]            @relation("Sabor1Pedido")
+  itensPedidoSabor2  PedidoItem[]            @relation("Sabor2Pedido")
+
+  @@unique([restauranteId, id])
+  @@index([restauranteId, categoriaId])
+  @@index([restauranteId, disponivel, ativo])
+  @@map("produtos")
+}
+
+model TamanhoPizza {
+  id                   String   @id @default(uuid()) @db.Uuid
+  restauranteId        String   @map("restaurante_id") @db.Uuid
+  nome                 String   @db.VarChar(60)
+  quantidadeMaxSabores Int      @default(2) @map("quantidade_max_sabores")
+  ordem                Int      @default(0)
+  ativo                Boolean  @default(true)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante           @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  precos      PrecoProdutoTamanho[]
+  itensPedido PedidoItem[]
+
+  @@unique([restauranteId, id])
+  @@unique([restauranteId, nome])
+  @@index([restauranteId, ativo, ordem])
+  @@map("tamanhos_pizza")
+}
+
+model PrecoProdutoTamanho {
+  id            String   @id @default(uuid()) @db.Uuid
+  restauranteId String   @map("restaurante_id") @db.Uuid
+  produtoId     String   @map("produto_id") @db.Uuid
+  tamanhoId     String   @map("tamanho_id") @db.Uuid
+  preco         Decimal  @db.Decimal(12, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante  @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  produto     Produto      @relation(fields: [restauranteId, produtoId], references: [restauranteId, id], onDelete: Restrict)
+  tamanho     TamanhoPizza @relation(fields: [restauranteId, tamanhoId], references: [restauranteId, id], onDelete: Restrict)
+
+  @@unique([restauranteId, produtoId, tamanhoId])
+  @@index([restauranteId, tamanhoId])
+  @@map("precos_produto_tamanho")
+}
+
+model GrupoAdicional {
+  id            String   @id @default(uuid()) @db.Uuid
+  restauranteId String   @map("restaurante_id") @db.Uuid
+  nome          String   @db.VarChar(60)
+  descricao     String?  @db.Text
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante             @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  itens       ItemAdicional[]
+  produtos    ProdutoGrupoAdicional[]
+
+  @@unique([restauranteId, id])
+  @@index([restauranteId, ativo])
+  @@map("grupos_adicionais")
+}
+
+model ItemAdicional {
+  id            String   @id @default(uuid()) @db.Uuid
+  restauranteId String   @map("restaurante_id") @db.Uuid
+  grupoId       String   @map("grupo_id") @db.Uuid
+  nome          String   @db.VarChar(60)
+  preco         Decimal  @default(0) @db.Decimal(12, 2)
+  disponivel    Boolean  @default(true)
+  ordem         Int      @default(0)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante           @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  grupo       GrupoAdicional        @relation(fields: [restauranteId, grupoId], references: [restauranteId, id], onDelete: Restrict)
+  itensPedido PedidoItemAdicional[]
+
+  @@unique([restauranteId, id])
+  @@index([restauranteId, grupoId, disponivel, ordem])
+  @@map("itens_adicional")
+}
+
+model ProdutoGrupoAdicional {
+  id            String  @id @default(uuid()) @db.Uuid
+  restauranteId String  @map("restaurante_id") @db.Uuid
+  produtoId     String  @map("produto_id") @db.Uuid
+  grupoId       String  @map("grupo_id") @db.Uuid
+  obrigatorio   Boolean @default(false)
+  minimo        Int     @default(0)
+  maximo        Int     @default(1)
+  ordem         Int     @default(0)
+
+  restaurante Restaurante    @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  produto     Produto        @relation(fields: [restauranteId, produtoId], references: [restauranteId, id], onDelete: Restrict)
+  grupo       GrupoAdicional @relation(fields: [restauranteId, grupoId], references: [restauranteId, id], onDelete: Restrict)
+
+  @@unique([restauranteId, produtoId, grupoId])
+  @@index([restauranteId, grupoId])
+  @@map("produto_grupo_adicionais")
+}
+
+model BairroEntrega {
+  id              String   @id @default(uuid()) @db.Uuid
+  restauranteId   String   @map("restaurante_id") @db.Uuid
+  nome            String   @db.VarChar(100)
+  nomeNormalizado String   @map("nome_normalizado") @db.VarChar(100)
+  taxaEntrega     Decimal  @map("taxa_entrega") @db.Decimal(12, 2)
+  ativo           Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante       @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  enderecos   EnderecoCliente[]
+  pedidos     Pedido[]
+
+  @@unique([restauranteId, id])
+  @@unique([restauranteId, nomeNormalizado])
+  @@index([restauranteId, ativo])
+  @@map("bairros_entrega")
+}
+
+model Cliente {
+  id            String    @id @default(uuid()) @db.Uuid
+  restauranteId String    @map("restaurante_id") @db.Uuid
+  nome          String?   @db.VarChar(100)
+  telefone      String?   @db.VarChar(20)
+  anonimizadoEm DateTime? @map("anonimizado_em") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante       Restaurante               @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  enderecos         EnderecoCliente[]
+  tokensDispositivo TokenDispositivoCliente[]
+  pedidos           Pedido[]
+  inscricoesPush    InscricaoPush[]
+
+  @@unique([restauranteId, id])
+  @@unique([restauranteId, telefone])
+  @@index([restauranteId, createdAt])
+  @@map("clientes")
+}
+
+model EnderecoCliente {
+  id            String   @id @default(uuid()) @db.Uuid
+  restauranteId String   @map("restaurante_id") @db.Uuid
+  clienteId     String   @map("cliente_id") @db.Uuid
+  bairroId      String?  @map("bairro_id") @db.Uuid
+  rotulo        String?  @db.VarChar(40)
+  cep           String?  @db.VarChar(9)
+  rua           String   @db.VarChar(150)
+  numero        String   @db.VarChar(20)
+  complemento   String?  @db.VarChar(100)
+  bairro        String   @db.VarChar(100)
+  cidade        String?  @db.VarChar(100)
+  estado        String?  @db.Char(2)
+  referencia    String?  @db.VarChar(100)
+  padrao        Boolean  @default(false)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante   Restaurante    @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  cliente       Cliente        @relation(fields: [restauranteId, clienteId], references: [restauranteId, id], onDelete: Cascade)
+  bairroEntrega BairroEntrega? @relation(fields: [restauranteId, bairroId], references: [restauranteId, id], onDelete: Restrict)
+
+  @@unique([restauranteId, id])
+  @@index([restauranteId, clienteId])
+  @@index([restauranteId, bairroId])
+  @@map("enderecos_cliente")
+}
+
+model TokenDispositivoCliente {
+  id            String    @id @default(uuid()) @db.Uuid
+  restauranteId String    @map("restaurante_id") @db.Uuid
+  clienteId     String    @map("cliente_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash") @db.VarChar(255)
+  expiraEm      DateTime  @map("expira_em") @db.Timestamptz(6)
+  revogadoEm    DateTime? @map("revogado_em") @db.Timestamptz(6)
+  rotacionadoEm DateTime? @map("rotacionado_em") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  cliente     Cliente     @relation(fields: [restauranteId, clienteId], references: [restauranteId, id], onDelete: Cascade)
+
+  @@index([restauranteId, clienteId, expiraEm])
+  @@map("tokens_dispositivo_cliente")
+}
+
+model ContadorPedido {
+  restauranteId String   @id @map("restaurante_id") @db.Uuid
+  proximoNumero BigInt   @default(1) @map("proximo_numero")
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+
+  @@map("contador_pedidos")
+}
+
+model Pedido {
+  id                          String         @id @default(uuid()) @db.Uuid
+  restauranteId               String         @map("restaurante_id") @db.Uuid
+  numeroPedido                BigInt         @map("numero_pedido")
+  origem                      OrigemPedido
+  criadoPorUsuarioId          String?        @map("criado_por_usuario_id") @db.Uuid
+  clienteId                   String?        @map("cliente_id") @db.Uuid
+  nomeContatoSnapshot         String?        @map("nome_contato_snapshot") @db.VarChar(100)
+  telefoneSnapshot            String?        @map("telefone_snapshot") @db.VarChar(20)
+  tipoEntrega                 TipoEntrega    @map("tipo_entrega")
+  bairroId                    String?        @map("bairro_id") @db.Uuid
+  bairroSnapshot              String?        @map("bairro_snapshot") @db.VarChar(100)
+  taxaEntrega                 Decimal        @default(0) @map("taxa_entrega") @db.Decimal(12, 2)
+  enderecoRuaSnapshot         String?        @map("endereco_rua_snapshot") @db.VarChar(150)
+  enderecoNumeroSnapshot      String?        @map("endereco_numero_snapshot") @db.VarChar(20)
+  enderecoComplementoSnapshot String?        @map("endereco_complemento_snapshot") @db.VarChar(100)
+  enderecoReferenciaSnapshot  String?        @map("endereco_referencia_snapshot") @db.VarChar(100)
+  enderecoCepSnapshot         String?        @map("endereco_cep_snapshot") @db.VarChar(9)
+  enderecoCidadeSnapshot      String?        @map("endereco_cidade_snapshot") @db.VarChar(100)
+  enderecoEstadoSnapshot      String?        @map("endereco_estado_snapshot") @db.Char(2)
+  formaPagamento              FormaPagamento @map("forma_pagamento")
+  trocoPara                   Decimal?       @map("troco_para") @db.Decimal(12, 2)
+  subtotal                    Decimal        @db.Decimal(12, 2)
+  valorTotal                  Decimal        @map("valor_total") @db.Decimal(12, 2)
+  status                      StatusPedido   @default(AGUARDANDO_ACEITE)
+  observacao                  String?        @db.Text
+  idempotencyKey              String?        @map("idempotency_key") @db.VarChar(128)
+  payloadHash                 String?        @map("payload_hash") @db.VarChar(128)
+  trackingTokenHash           String?        @unique @map("tracking_token_hash") @db.VarChar(255)
+  expiraAceiteEm              DateTime?      @map("expira_aceite_em") @db.Timestamptz(6)
+  expiraPagamentoEm           DateTime?      @map("expira_pagamento_em") @db.Timestamptz(6)
+  createdAt                   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante   Restaurante          @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  criadoPor     Usuario?             @relation("PedidoCriador", fields: [restauranteId, criadoPorUsuarioId], references: [restauranteId, id], onDelete: Restrict)
+  cliente       Cliente?             @relation(fields: [restauranteId, clienteId], references: [restauranteId, id], onDelete: Restrict)
+  bairroEntrega BairroEntrega?       @relation(fields: [restauranteId, bairroId], references: [restauranteId, id], onDelete: Restrict)
+  itens         PedidoItem[]
+  pagamentos    Pagamento[]
+  eventosStatus EventoStatusPedido[]
+
+  @@unique([restauranteId, id])
+  @@unique([restauranteId, numeroPedido])
+  @@unique([restauranteId, idempotencyKey])
+  @@index([restauranteId, status, createdAt(sort: Desc)])
+  @@index([restauranteId, clienteId, createdAt(sort: Desc)])
+  @@index([restauranteId, bairroId])
+  @@map("pedidos")
+}
+
+model PedidoItem {
+  id                  String   @id @default(uuid()) @db.Uuid
+  restauranteId       String   @map("restaurante_id") @db.Uuid
+  pedidoId            String   @map("pedido_id") @db.Uuid
+  produtoId           String?  @map("produto_id") @db.Uuid
+  tamanhoId           String?  @map("tamanho_id") @db.Uuid
+  sabor1Id            String?  @map("sabor1_id") @db.Uuid
+  sabor2Id            String?  @map("sabor2_id") @db.Uuid
+  quantidade          Int      @default(1)
+  nomeProdutoSnapshot String   @map("nome_produto_snapshot") @db.VarChar(100)
+  descricaoSnapshot   String?  @map("descricao_snapshot") @db.Text
+  tamanhoSnapshot     String?  @map("tamanho_snapshot") @db.VarChar(60)
+  sabor1Snapshot      String?  @map("sabor1_snapshot") @db.VarChar(100)
+  sabor2Snapshot      String?  @map("sabor2_snapshot") @db.VarChar(100)
+  precoSabor1Snapshot Decimal? @map("preco_sabor1_snapshot") @db.Decimal(12, 2)
+  precoSabor2Snapshot Decimal? @map("preco_sabor2_snapshot") @db.Decimal(12, 2)
+  precoUnitario       Decimal  @map("preco_unitario") @db.Decimal(12, 2)
+  totalLinha          Decimal  @map("total_linha") @db.Decimal(12, 2)
+  observacao          String?  @db.VarChar(255)
+
+  restaurante Restaurante           @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  pedido      Pedido                @relation(fields: [restauranteId, pedidoId], references: [restauranteId, id], onDelete: Cascade)
+  produto     Produto?              @relation("ProdutoPedido", fields: [restauranteId, produtoId], references: [restauranteId, id], onDelete: Restrict)
+  tamanho     TamanhoPizza?         @relation(fields: [restauranteId, tamanhoId], references: [restauranteId, id], onDelete: Restrict)
+  sabor1      Produto?              @relation("Sabor1Pedido", fields: [restauranteId, sabor1Id], references: [restauranteId, id], onDelete: Restrict)
+  sabor2      Produto?              @relation("Sabor2Pedido", fields: [restauranteId, sabor2Id], references: [restauranteId, id], onDelete: Restrict)
+  adicionais  PedidoItemAdicional[]
+
+  @@unique([restauranteId, id])
+  @@index([restauranteId, pedidoId])
+  @@index([restauranteId, produtoId])
+  @@map("pedido_itens")
+}
+
+model PedidoItemAdicional {
+  id              String  @id @default(uuid()) @db.Uuid
+  restauranteId   String  @map("restaurante_id") @db.Uuid
+  pedidoItemId    String  @map("pedido_item_id") @db.Uuid
+  itemAdicionalId String? @map("item_adicional_id") @db.Uuid
+  nomeSnapshot    String  @map("nome_snapshot") @db.VarChar(60)
+  quantidade      Int     @default(1)
+  precoUnitario   Decimal @map("preco_unitario") @db.Decimal(12, 2)
+  totalLinha      Decimal @map("total_linha") @db.Decimal(12, 2)
+
+  restaurante   Restaurante    @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  pedidoItem    PedidoItem     @relation(fields: [restauranteId, pedidoItemId], references: [restauranteId, id], onDelete: Cascade)
+  itemAdicional ItemAdicional? @relation(fields: [restauranteId, itemAdicionalId], references: [restauranteId, id], onDelete: Restrict)
+
+  @@index([restauranteId, pedidoItemId])
+  @@index([restauranteId, itemAdicionalId])
+  @@map("pedido_item_adicionais")
+}
+
+model Pagamento {
+  id                String             @id @default(uuid()) @db.Uuid
+  restauranteId     String             @map("restaurante_id") @db.Uuid
+  pedidoId          String             @map("pedido_id") @db.Uuid
+  forma             FormaPagamento
+  provedor          ProvedorPagamento?
+  status            StatusPagamento
+  valor             Decimal            @db.Decimal(12, 2)
+  moeda             String             @default("BRL") @db.Char(3)
+  referenciaExterna String?            @map("referencia_externa") @db.VarChar(150)
+  copiaECola        String?            @map("copia_e_cola") @db.Text
+  qrCodeImagem      String?            @map("qr_code_imagem") @db.Text
+  expiraEm          DateTime?          @map("expira_em") @db.Timestamptz(6)
+  pagoEm            DateTime?          @map("pago_em") @db.Timestamptz(6)
+  canceladoEm       DateTime?          @map("cancelado_em") @db.Timestamptz(6)
+  metadados         Json?
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  pedido      Pedido      @relation(fields: [restauranteId, pedidoId], references: [restauranteId, id], onDelete: Restrict)
+
+  @@unique([restauranteId, id])
+  @@unique([restauranteId, provedor, referenciaExterna])
+  @@index([restauranteId, pedidoId, createdAt])
+  @@index([restauranteId, status, expiraEm])
+  @@map("pagamentos")
+}
+
+model CredencialGateway {
+  id                String            @id @default(uuid()) @db.Uuid
+  restauranteId     String            @map("restaurante_id") @db.Uuid
+  provedor          ProvedorPagamento
+  credencialCifrada String            @map("credencial_cifrada") @db.Text
+  ativa             Boolean           @default(true)
+  validadaEm        DateTime?         @map("validada_em") @db.Timestamptz(6)
+  ultimoErroCodigo  String?           @map("ultimo_erro_codigo") @db.VarChar(80)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+
+  @@unique([restauranteId, provedor])
+  @@index([restauranteId, ativa])
+  @@map("credenciais_gateway")
+}
+
+model EventoStatusPedido {
+  id             String         @id @default(uuid()) @db.Uuid
+  restauranteId  String         @map("restaurante_id") @db.Uuid
+  pedidoId       String         @map("pedido_id") @db.Uuid
+  atorTipo       TipoAtorEvento @map("ator_tipo")
+  atorUsuarioId  String?        @map("ator_usuario_id") @db.Uuid
+  statusAnterior StatusPedido?  @map("status_anterior")
+  statusNovo     StatusPedido   @map("status_novo")
+  motivo         String?        @db.VarChar(255)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  pedido      Pedido      @relation(fields: [restauranteId, pedidoId], references: [restauranteId, id], onDelete: Cascade)
+  atorUsuario Usuario?    @relation(fields: [restauranteId, atorUsuarioId], references: [restauranteId, id], onDelete: Restrict)
+
+  @@index([restauranteId, pedidoId, createdAt])
+  @@map("eventos_status_pedido")
+}
+
+model WebhookInbox {
+  id                  String            @id @default(uuid()) @db.Uuid
+  provedor            ProvedorPagamento
+  identificadorEvento String            @map("identificador_evento") @db.VarChar(180)
+  referenciaExterna   String?           @map("referencia_externa") @db.VarChar(150)
+  status              StatusWebhook     @default(RECEBIDO)
+  payload             Json?
+  recebidoEm          DateTime          @default(now()) @map("recebido_em") @db.Timestamptz(6)
+  processadoEm        DateTime?         @map("processado_em") @db.Timestamptz(6)
+  resultado           String?           @db.VarChar(255)
+
+  @@unique([provedor, identificadorEvento])
+  @@index([provedor, referenciaExterna])
+  @@index([status, recebidoEm])
+  @@map("webhook_inbox")
+}
+
+model InscricaoPush {
+  id                  String        @id @default(uuid()) @db.Uuid
+  restauranteId       String        @map("restaurante_id") @db.Uuid
+  audiencia           AudienciaPush
+  usuarioId           String?       @map("usuario_id") @db.Uuid
+  clienteId           String?       @map("cliente_id") @db.Uuid
+  endpoint            String        @unique @db.Text
+  chavePublicaCifrada String        @map("chave_publica_cifrada") @db.Text
+  chaveAuthCifrada    String        @map("chave_auth_cifrada") @db.Text
+  ativa               Boolean       @default(true)
+  ultimoEnvioEm       DateTime?     @map("ultimo_envio_em") @db.Timestamptz(6)
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  usuario     Usuario?    @relation(fields: [restauranteId, usuarioId], references: [restauranteId, id], onDelete: Cascade)
+  cliente     Cliente?    @relation(fields: [restauranteId, clienteId], references: [restauranteId, id], onDelete: Cascade)
+
+  @@index([restauranteId, audiencia, ativa])
+  @@index([restauranteId, usuarioId])
+  @@index([restauranteId, clienteId])
+  @@map("inscricoes_push")
+}
+
+model OutboxEvento {
+  id                 String       @id @default(uuid()) @db.Uuid
+  restauranteId      String?      @map("restaurante_id") @db.Uuid
+  tipo               String       @db.VarChar(100)
+  agregadoTipo       String       @map("agregado_tipo") @db.VarChar(80)
+  agregadoId         String       @map("agregado_id") @db.Uuid
+  payload            Json
+  status             StatusOutbox @default(PENDENTE)
+  tentativas         Int          @default(0)
+  proximaTentativaEm DateTime?    @map("proxima_tentativa_em") @db.Timestamptz(6)
+  processadoEm       DateTime?    @map("processado_em") @db.Timestamptz(6)
+  ultimoErro         String?      @map("ultimo_erro") @db.VarChar(500)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  restaurante Restaurante? @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+
+  @@index([status, proximaTentativaEm, createdAt])
+  @@index([restauranteId, agregadoTipo, agregadoId])
+  @@map("outbox_eventos")
+}
